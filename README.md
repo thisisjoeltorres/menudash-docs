@@ -10,7 +10,7 @@ Esta aplicación web está diseñada para optimizar la toma de comandas y la com
 
 * **Carlos Peña** (1093744182) — *Product Owner*
 * **Joel A. Torres** (1149459256) — *Scrum Master*
-* **Eduen Mendoza** (1127056432) — *Equipo de Desarrollo (Backend/Frontend)*
+* **Eduen Daniel Mendoza Durán** (1127056432) — *Equipo de Desarrollo (Backend/Frontend)*
 * **Henry Serrano** (1090395966) — *Equipo de Desarrollo (Diseño UI/UX)*
 
 **Docente:** Prof. Fanni Casadiego  
@@ -44,3 +44,4 @@ El proyecto se encuentra organizado en las siguientes carpetas principales:
 ## 🛠️ Estado del Proyecto
 
 Actualmente, el proyecto se encuentra en la etapa de **definición de arquitectura, análisis de requerimientos y diseño de base de datos**.
+
