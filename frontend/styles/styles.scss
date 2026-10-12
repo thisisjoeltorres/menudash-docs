@@ -491,6 +491,167 @@ select.campo {
   h3 { font-size: 1.4rem; color: var(--tinta); margin-bottom: .5rem; }
 }
 
+
+// Gestion menu
+
+$menu-cambiar-fondo: #FFF1C2;
+$menu-cambiar-fondo-hover: #FFE69A;
+$menu-cambiar-texto: #5E4700;
+ 
+$menu-quitar-fondo: #FBE3E4;
+$menu-quitar-fondo-hover: #F5C9CB;
+$menu-quitar-texto: #8E1116;
+ 
+
+@mixin boton-suave($fondo, $fondo-hover, $texto, $borde) {
+  background: $fondo;
+  color: $texto;
+  border-color: $borde;
+ 
+  @media (hover: hover) {
+    &:hover { background: $fondo-hover; }
+  }
+}
+ 
+.gestion-menu {
+  margin-bottom: 1.5rem;
+ 
+  
+  &-encabezado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .8rem 1rem;
+    margin-bottom: 1rem;
+ 
+    h2 { font-size: 1.6rem; margin: 0; }
+ 
+    .btn-agregar {
+      width: auto;
+      min-height: 64px;
+      padding: .8rem 1.6rem;
+      font-size: 1.2rem;
+    }
+ 
+    @media (max-width: 520px) {
+      .btn-agregar { width: 100%; }
+    }
+  }
+}
+ 
+.lista-menu {
+  display: grid;
+  gap: .9rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+ 
+
+.fila-menu {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  grid-template-areas: "emo nombre precio acciones";
+  align-items: center;
+  column-gap: .85rem;
+  padding: .8rem 1rem;
+  background: var(--papel);
+  border: 3px solid var(--tinta);
+  border-radius: var(--r);
+  box-shadow: var(--sombra);
+ 
+  &-emo {
+    grid-area: emo;
+    display: grid;
+    place-items: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: 1.85rem;
+    line-height: 1;
+    background: var(--papel-2);
+    border: 3px solid var(--tinta);
+    border-radius: 12px;
+  }
+ 
+  &-nombre {
+    grid-area: nombre;
+    min-width: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+ 
+  &-precio {
+    grid-area: precio;
+    min-width: 6.25rem;
+    padding: .35rem .8rem;
+    background: var(--tinta);
+    color: var(--mostaza);
+    border-radius: 10px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+ 
+  &-acciones {
+    grid-area: acciones;
+    display: flex;
+    gap: .6rem;
+  }
+ 
+  @media (max-width: 720px) {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "emo nombre"
+      "emo precio"
+      "acciones acciones";
+    row-gap: .35rem;
+ 
+    &-precio {
+      justify-self: start;
+      min-width: 0;
+    }
+ 
+    &-acciones {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: .4rem;
+    }
+ 
+    .btn-fila { padding-inline: .5rem; }
+  }
+}
+ 
+.btn-fila {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  min-height: 3.5rem;
+  padding: .5rem .85rem;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  transition: transform .06s ease;
+ 
+  &:active { transform: translateY(2px); }
+}
+ 
+.btn-cambiar {
+  @include boton-suave($menu-cambiar-fondo, $menu-cambiar-fondo-hover, $menu-cambiar-texto, var(--mostaza-osc));
+}
+ 
+.btn-quitar {
+  @include boton-suave($menu-quitar-fondo, $menu-quitar-fondo-hover, $menu-quitar-texto, var(--tomate));
+}
+
+
+
 /* ============================================================
    GENERALES Y FOOTER
    ============================================================ */

@@ -618,6 +618,151 @@ select.campo {
   margin-bottom: 0.5rem;
 }
 
+.gestion-menu {
+  margin-bottom: 1.5rem;
+}
+.gestion-menu-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.8rem 1rem;
+  margin-bottom: 1rem;
+}
+.gestion-menu-encabezado h2 {
+  font-size: 1.6rem;
+  margin: 0;
+}
+.gestion-menu-encabezado .btn-agregar {
+  width: auto;
+  min-height: 64px;
+  padding: 0.8rem 1.6rem;
+  font-size: 1.2rem;
+}
+@media (max-width: 520px) {
+  .gestion-menu-encabezado .btn-agregar {
+    width: 100%;
+  }
+}
+
+.lista-menu {
+  display: grid;
+  gap: 0.9rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fila-menu {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  grid-template-areas: "emo nombre precio acciones";
+  align-items: center;
+  -moz-column-gap: 0.85rem;
+       column-gap: 0.85rem;
+  padding: 0.8rem 1rem;
+  background: var(--papel);
+  border: 3px solid var(--tinta);
+  border-radius: var(--r);
+  box-shadow: var(--sombra);
+}
+.fila-menu-emo {
+  grid-area: emo;
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: 1.85rem;
+  line-height: 1;
+  background: var(--papel-2);
+  border: 3px solid var(--tinta);
+  border-radius: 12px;
+}
+.fila-menu-nombre {
+  grid-area: nombre;
+  min-width: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.fila-menu-precio {
+  grid-area: precio;
+  min-width: 6.25rem;
+  padding: 0.35rem 0.8rem;
+  background: var(--tinta);
+  color: var(--mostaza);
+  border-radius: 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.fila-menu-acciones {
+  grid-area: acciones;
+  display: flex;
+  gap: 0.6rem;
+}
+@media (max-width: 720px) {
+  .fila-menu {
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "emo nombre" "emo precio" "acciones acciones";
+    row-gap: 0.35rem;
+  }
+  .fila-menu-precio {
+    justify-self: start;
+    min-width: 0;
+  }
+  .fila-menu-acciones {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0.4rem;
+  }
+  .fila-menu .btn-fila {
+    padding-inline: 0.5rem;
+  }
+}
+
+.btn-fila {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 3.5rem;
+  padding: 0.5rem 0.85rem;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  transition: transform 0.06s ease;
+}
+.btn-fila:active {
+  transform: translateY(2px);
+}
+
+.btn-cambiar {
+  background: #FFF1C2;
+  color: #5E4700;
+  border-color: var(--mostaza-osc);
+}
+@media (hover: hover) {
+  .btn-cambiar:hover {
+    background: #FFE69A;
+  }
+}
+
+.btn-quitar {
+  background: #FBE3E4;
+  color: #8E1116;
+  border-color: var(--tomate);
+}
+@media (hover: hover) {
+  .btn-quitar:hover {
+    background: #F5C9CB;
+  }
+}
+
 /* ============================================================
    GENERALES Y FOOTER
    ============================================================ */
