@@ -548,6 +548,45 @@ select.campo {
 /* ============================================================
    PANEL DE ADMINISTRACIÓN (ESPACIO PARA COMPAÑEROS)
    ============================================================ */
+.estadisticas-dia {
+  margin-bottom: 1.5rem;
+}
+.estadisticas-dia h2 {
+  font-size: 1.6rem;
+  margin-bottom: 0.8rem;
+}
+
+.rejilla-kpi {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.tarjeta-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  background: var(--papel-2);
+  border: 3px solid var(--tinta);
+  border-radius: var(--r);
+  box-shadow: var(--sombra);
+}
+.tarjeta-kpi .kpi-etiqueta {
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tinta-suave);
+}
+.tarjeta-kpi .kpi-valor {
+  font-family: "Archivo Black", sans-serif;
+  font-weight: 400;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
 .seccion-admin {
   background: var(--papel);
   border: 3px solid var(--tinta);
@@ -815,4 +854,4 @@ select.campo {
   .contenido {
     padding: 0.8rem;
   }
-}/*# sourceMappingURL=./styles/styles.css.map */
+}/*# sourceMappingURL=styles.css.map */
