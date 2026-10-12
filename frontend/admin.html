@@ -130,13 +130,56 @@
       </ul>
     </section>
 
-    <section class="seccion-admin">
-      <h2>⚙️ Panel de Control Principal</h2>
-      <p>Esta vista está reservada para que el equipo de desarrollo implemente las estadísticas detalladas, la gestión avanzada del menú y los reportes diarios.</p>
-      
-      <div class="caja-equipo">
-        <h3>Sección asignada a los compañeros</h3>
-        <p>Aquí pueden agregar componentes de análisis de ventas, gráficos o control de inventarios.</p>
+    <section class="historial-pedidos" aria-labelledby="titulo-historial">
+      <header class="historial-encabezado">
+        <h2 id="titulo-historial">📋 Historial de Pedidos</h2>
+      </header>
+
+      <div class="filtros-historial">
+        <input type="text" placeholder="Buscar por cliente o turno..." class="input-busqueda" aria-label="Buscar pedidos">
+        <div class="botones-filtro" role="group" aria-label="Filtros de estado">
+          <button type="button" class="btn-filtro active">Todos</button>
+          <button type="button" class="btn-filtro">Entregados</button>
+          <button type="button" class="btn-filtro">En Proceso</button>
+          <button type="button" class="btn-filtro">Cancelados</button>
+        </div>
+      </div>
+
+      <div class="contenedor-tabla">
+        <table class="tabla-historial">
+          <thead>
+            <tr>
+              <th>Turno</th>
+              <th>Cliente</th>
+              <th>Productos</th>
+              <th>Total</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>#001</strong></td>
+              <td>Carlos Gómez</td>
+              <td>1x Burger Clásica, 1x Papas</td>
+              <td>$25.000</td>
+              <td><span class="badge entregado">Entregado</span></td>
+            </tr>
+            <tr>
+              <td><strong>#002</strong></td>
+              <td>María López</td>
+              <td>2x Doble Carne, 1x Gaseosa</td>
+              <td>$42.000</td>
+              <td><span class="badge en-proceso">En Proceso</span></td>
+            </tr>
+            <tr>
+              <td><strong>#003</strong></td>
+              <td>Juan Pérez</td>
+              <td>1x Burger Veggie</td>
+              <td>$18.000</td>
+              <td><span class="badge cancelado">Cancelado</span></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
   </main>

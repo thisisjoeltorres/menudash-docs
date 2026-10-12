@@ -757,3 +757,145 @@ $menu-quitar-texto: #8E1116;
   .lista-tiquetes { grid-template-columns: 1fr; }
   .contenido { padding: .8rem; }
 }
+/* ==================================================
+   ESTILOS — Historial de Pedidos y Filtros 
+   ==================================================*/
+$historial-entregado-fondo: #D4EDDA;
+$historial-entregado-texto: #155724;
+$historial-proceso-fondo: #FFF3CD;
+$historial-proceso-texto: #856404;
+$historial-cancelado-fondo: #F8D7DA;
+$historial-cancelado-texto: #721C24;
+
+.historial-pedidos {
+  margin-bottom: 1.5rem;
+  background: var(--papel);
+  border: 3px solid var(--tinta);
+  border-radius: var(--r);
+  padding: 1.5rem;
+  box-shadow: var(--sombra-base);
+
+  .historial-encabezado {
+    margin-bottom: 1rem;
+    h2 { font-size: 1.6rem; margin: 0; }
+  }
+
+  .filtros-historial {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+
+    .input-busqueda {
+      flex: 1;
+      min-width: 220px;
+      min-height: 56px;
+      padding: .6rem 1rem;
+      font-size: 1.1rem;
+      font-family: inherit;
+      border: 3px solid var(--tinta);
+      border-radius: 12px;
+      background: var(--papel-2);
+      color: var(--tinta);
+      outline: none;
+
+      &:focus {
+        border-color: var(--mostaza-osc);
+      }
+    }
+
+    .botones-filtro {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+
+      .btn-filtro {
+        min-height: 56px;
+        background: var(--papel-2);
+        border: 3px solid var(--tinta);
+        padding: .5rem 1.1rem;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 1.05rem;
+        border-radius: 12px;
+        transition: transform .06s ease;
+
+        &:active { transform: translateY(2px); }
+
+        &.active, &:hover {
+          background: var(--tinta);
+          color: var(--mostaza);
+        }
+      }
+    }
+  }
+
+  .contenedor-tabla {
+    overflow-x: auto;
+  }
+
+  .tabla-historial {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--papel-2);
+    border: 3px solid var(--tinta);
+    border-radius: 12px;
+    overflow: hidden;
+
+    th, td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      border-bottom: 2px solid var(--linea);
+      font-size: 1.1rem;
+    }
+
+    th {
+      background: var(--tinta);
+      color: var(--papel);
+      font-family: 'Archivo Black', sans-serif;
+      font-weight: 400;
+      font-size: 1.05rem;
+      letter-spacing: .02em;
+      border-bottom: 3px solid var(--tinta);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Etiquetas de estados visuales */
+    .badge {
+      display: inline-block;
+      padding: 0.3rem 0.7rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border: 2px solid var(--tinta);
+
+      &.entregado {
+        background-color: $historial-entregado-fondo;
+        color: $historial-entregado-texto;
+      }
+
+      &.en-proceso {
+        background-color: $historial-proceso-fondo;
+        color: $historial-proceso-texto;
+      }
+
+      &.cancelado {
+        background-color: $historial-cancelado-fondo;
+        color: $historial-cancelado-texto;
+      }
+    }
+  }
+
+  @media (max-width: 720px) {
+    padding: 1rem;
+    .filtros-historial {
+      flex-direction: column;
+      .input-busqueda { width: 100%; }
+      .botones-filtro { width: 100%; justify-content: stretch; button { flex: 1; } }
+    }
+  }
+}

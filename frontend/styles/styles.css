@@ -999,4 +999,138 @@ select.campo {
   .contenido {
     padding: 0.8rem;
   }
+}
+/* ==================================================
+   ESTILOS — Historial de Pedidos y Filtros 
+   ==================================================*/
+.historial-pedidos {
+  margin-bottom: 1.5rem;
+  background: var(--papel);
+  border: 3px solid var(--tinta);
+  border-radius: var(--r);
+  padding: 1.5rem;
+  box-shadow: var(--sombra-base);
+}
+.historial-pedidos .historial-encabezado {
+  margin-bottom: 1rem;
+}
+.historial-pedidos .historial-encabezado h2 {
+  font-size: 1.6rem;
+  margin: 0;
+}
+.historial-pedidos .filtros-historial {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+.historial-pedidos .filtros-historial .input-busqueda {
+  flex: 1;
+  min-width: 220px;
+  min-height: 56px;
+  padding: 0.6rem 1rem;
+  font-size: 1.1rem;
+  font-family: inherit;
+  border: 3px solid var(--tinta);
+  border-radius: 12px;
+  background: var(--papel-2);
+  color: var(--tinta);
+  outline: none;
+}
+.historial-pedidos .filtros-historial .input-busqueda:focus {
+  border-color: var(--mostaza-osc);
+}
+.historial-pedidos .filtros-historial .botones-filtro {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.historial-pedidos .filtros-historial .botones-filtro .btn-filtro {
+  min-height: 56px;
+  background: var(--papel-2);
+  border: 3px solid var(--tinta);
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.05rem;
+  border-radius: 12px;
+  transition: transform 0.06s ease;
+}
+.historial-pedidos .filtros-historial .botones-filtro .btn-filtro:active {
+  transform: translateY(2px);
+}
+.historial-pedidos .filtros-historial .botones-filtro .btn-filtro.active, .historial-pedidos .filtros-historial .botones-filtro .btn-filtro:hover {
+  background: var(--tinta);
+  color: var(--mostaza);
+}
+.historial-pedidos .contenedor-tabla {
+  overflow-x: auto;
+}
+.historial-pedidos .tabla-historial {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--papel-2);
+  border: 3px solid var(--tinta);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.historial-pedidos .tabla-historial th, .historial-pedidos .tabla-historial td {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  border-bottom: 2px solid var(--linea);
+  font-size: 1.1rem;
+}
+.historial-pedidos .tabla-historial th {
+  background: var(--tinta);
+  color: var(--papel);
+  font-family: "Archivo Black", sans-serif;
+  font-weight: 400;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  border-bottom: 3px solid var(--tinta);
+}
+.historial-pedidos .tabla-historial tr:last-child td {
+  border-bottom: none;
+}
+.historial-pedidos .tabla-historial {
+  /* Etiquetas de estados visuales */
+}
+.historial-pedidos .tabla-historial .badge {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: 2px solid var(--tinta);
+}
+.historial-pedidos .tabla-historial .badge.entregado {
+  background-color: #D4EDDA;
+  color: #155724;
+}
+.historial-pedidos .tabla-historial .badge.en-proceso {
+  background-color: #FFF3CD;
+  color: #856404;
+}
+.historial-pedidos .tabla-historial .badge.cancelado {
+  background-color: #F8D7DA;
+  color: #721C24;
+}
+@media (max-width: 720px) {
+  .historial-pedidos {
+    padding: 1rem;
+  }
+  .historial-pedidos .filtros-historial {
+    flex-direction: column;
+  }
+  .historial-pedidos .filtros-historial .input-busqueda {
+    width: 100%;
+  }
+  .historial-pedidos .filtros-historial .botones-filtro {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .historial-pedidos .filtros-historial .botones-filtro button {
+    flex: 1;
+  }
 }/*# sourceMappingURL=styles.css.map */
