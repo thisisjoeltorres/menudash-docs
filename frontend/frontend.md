@@ -1,1 +1,0 @@
-En esta carpeta iran documentos relacionados al frontend.
