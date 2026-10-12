@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mostrador — Doña Burger</title>
+  <link rel="stylesheet" href="./styles/styles.css">
+</head>
+<body>
+  <header class="barra">
+    <div class="rol"><small>Estás en</small>Mostrador / Mesero</div>
+    <div class="zoom" role="group" aria-label="Tamaño de la letra">
+      <button class="btn-barra" onclick="cambiarZoom(-1)">A−</button>
+      <button class="btn-barra" onclick="cambiarZoom(1)">A+</button>
+    </div>
+    <a href="login.html" class="btn-barra">Salir</a>
+    <p class="estado-sync" id="sync-mostrador"></p>
+  </header>
+
+  <div class="contenido">
+    <div class="pestanas" role="tablist">
+      <button class="pestana" role="tab" aria-selected="true" id="tab-nuevo" onclick="verPestana('nuevo')">
+        Nuevo pedido<small>Tomar una orden</small>
+      </button>
+      <button class="pestana" role="tab" aria-selected="false" id="tab-curso" onclick="verPestana('curso')">
+        En curso (<span id="cuenta-curso">0</span>)<small>Ver cómo van</small>
+      </button>
+    </div>
+
+    <!-- TOMAR PEDIDO -->
+    <div id="panel-nuevo">
+      <div class="paso">
+        <div class="paso-titulo"><span class="paso-num">1</span><h2>¿Para quién es?</h2></div>
+        <p class="ayuda">Toca cómo se lo lleva, o escribe el nombre del cliente.</p>
+        <div class="rejilla" id="rejilla-destinos"></div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-titulo"><span class="paso-num">2</span><h2>¿Qué va a pedir?</h2></div>
+        <div class="rejilla" id="rejilla-productos"></div>
+      </div>
+
+      <div class="paso">
+        <div class="paso-titulo"><span class="paso-num">3</span><h2>Revisa la orden</h2></div>
+        <div class="comanda" id="comanda"></div>
+      </div>
+
+      <button class="btn btn-verde btn-xl pegado" id="btn-enviar" onclick="enviarACocina()">
+        Enviar a la cocina
+      </button>
+    </div>
+
+    <!-- PEDIDOS EN CURSO -->
+    <div id="panel-curso" class="oculto">
+      <p class="aviso-listos" id="aviso-listos" role="status"></p>
+      <div class="resumen-dia" id="resumen-dia"></div>
+      <div class="lista-tiquetes" id="lista-mostrador"></div>
+    </div>
+  </div>
+
+  <div class="velo" id="velo" role="dialog" aria-modal="true">
+    <div class="dialogo">
+      <h2 id="dlg-titulo"></h2>
+      <p id="dlg-texto"></p>
+      <div class="botones" id="dlg-botones"></div>
+    </div>
+  </div>
+
+  <div class="aviso" id="aviso" role="status">
+    <p id="aviso-texto"></p>
+    <button onclick="deshacer()">Deshacer</button>
+  </div>
+  <div aria-live="polite" class="oculto" id="anuncio"></div>
+
+  <footer class="footer-global">
+    <div class="contenido-footer">
+      <p class="branding-footer">Doña Burger Web App Platform &copy; 2026</p>
+      <p class="integrantes-footer">
+        <strong>Integrantes del equipo:</strong>
+        <span>1. Joel Alejandro Torres Cañas[cite: 1]</span> | 
+        <span>2. Carlos</span> | 
+        <span>3. Daniel</span> |
+        <span>4. Henry</span>
+      </p>
+    </div>
+  </footer>
+
+  <script src="scripts.js"></script>
+</body>
+</html>

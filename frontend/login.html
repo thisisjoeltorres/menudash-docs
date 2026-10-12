@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceso — Doña Burger</title>
+  <link rel="stylesheet" href="./styles/styles.css">
+</head>
+<body>
+  <main class="contenido">
+    <div class="contenedor-login">
+      <div class="logo">
+        <h1 class="marca">DOÑA <em>BURGER</em></h1>
+        <p>Sistema de Gestión de Pedidos</p>
+      </div>
+
+      <form id="form-login" onsubmit="procesarLogin(event)" class="tarjeta-login">
+        <h2>Iniciar Sesión</h2>
+        
+        <div class="grupo-campo">
+          <label for="select-rol">Selecciona tu Rol</label>
+          <select id="select-rol" class="campo" onchange="actualizarPlaceholderPin()">
+            <option value="mostrador">🧾 Mesero / Mostrador</option>
+            <option value="cocina">🍔 Cocina</option>
+            <option value="admin">⚙️ Administrador</option>
+          </select>
+        </div>
+
+        <div class="grupo-campo">
+          <label for="campo-pin">PIN de Acceso</label>
+          <input type="password" id="campo-pin" class="campo" placeholder="PIN Demo: 1234" maxlength="6" required>
+        </div>
+
+        <button type="submit" class="btn btn-mostaza btn-xl">Ingresar al Sistema</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Modales y avisos -->
+  <div class="velo" id="velo" role="dialog" aria-modal="true">
+    <div class="dialogo">
+      <h2 id="dlg-titulo"></h2>
+      <p id="dlg-texto"></p>
+      <div class="botones" id="dlg-botones"></div>
+    </div>
+  </div>
+
+  <footer class="footer-global">
+    <div class="contenido-footer">
+      <p class="branding-footer">Doña Burger Web App Platform &copy; 2026</p>
+      <p class="integrantes-footer">
+        <strong>Integrantes del equipo:</strong>
+        <span>1. Joel Alejandro Torres Cañas[cite: 1]</span> | 
+        <span>2. Carlos</span> | 
+        <span>3. Daniel</span> |
+        <span>4. Henry</span>
+      </p>
+    </div>
+  </footer>
+
+  <script src="scripts.js"></script>
+</body>
+</html>

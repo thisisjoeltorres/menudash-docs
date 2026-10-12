@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cocina — Doña Burger</title>
+  <link rel="stylesheet" href="./styles/styles.css">
+</head>
+<body>
+  <header class="barra">
+    <div class="rol"><small>Estás en</small>Cocina · <span id="cuenta-cocina">0</span> por preparar</div>
+    <div class="zoom" role="group" aria-label="Tamaño de la letra">
+      <button class="btn-barra" onclick="cambiarZoom(-1)">A−</button>
+      <button class="btn-barra" onclick="cambiarZoom(1)">A+</button>
+    </div>
+    <button class="btn-barra" id="btn-sonido" onclick="alternarSonido()">🔔 Sonido</button>
+    <a href="login.html" class="btn-barra">Salir</a>
+    <p class="estado-sync" id="sync-cocina"></p>
+  </header>
+
+  <div class="contenido">
+    <div id="banner-nuevo" class="banner-nuevo" role="status">🔔 ¡Entró un pedido nuevo!</div>
+    <div class="lista-tiquetes" id="lista-cocina"></div>
+  </div>
+
+  <div class="velo" id="velo" role="dialog" aria-modal="true">
+    <div class="dialogo">
+      <h2 id="dlg-titulo"></h2>
+      <p id="dlg-texto"></p>
+      <div class="botones" id="dlg-botones"></div>
+    </div>
+  </div>
+
+  <div class="aviso" id="aviso" role="status">
+    <p id="aviso-texto"></p>
+    <button onclick="deshacer()">Deshacer</button>
+  </div>
+  <div aria-live="polite" class="oculto" id="anuncio"></div>
+
+  <footer class="footer-global">
+    <div class="contenido-footer">
+      <p class="branding-footer">Doña Burger Web App Platform &copy; 2026</p>
+      <p class="integrantes-footer">
+        <strong>Integrantes del equipo:</strong>
+        <span>1. Joel Alejandro Torres Cañas[cite: 1]</span> | 
+        <span>2. Carlos</span> | 
+        <span>3. Daniel</span> |
+        <span>4. Henry</span>
+      </p>
+    </div>
+  </footer>
+
+  <script src="scripts.js"></script>
+</body>
+</html>
