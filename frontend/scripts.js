@@ -1,33 +1,21 @@
-/* =====================================================================
-   Doña Burger — frontend con Supabase
-   Requiere en cada HTML, ANTES de scripts.js:
-   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-   ===================================================================== */
-
-const SUPABASE_URL = 'https://TU-PROYECTO.supabase.co';   // Settings > API
-const SUPABASE_ANON_KEY = 'TU_ANON_PUBLIC_KEY';     
-
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-const EMAILS_ROL = {
-  mostrador: 'mostrador@donaburger.app',
-  cocina: 'cocina@donaburger.app',
-  admin: 'admin@donaburger.app'
-};
-const PREFIJO_PIN = 'dona-'; // Supabase exige contraseñas de 6+ caracteres
-
-const DESTINOS_RAPIDOS = ['Para llevar', 'Domicilio', 'Come aquí'];
-const SIN_VEGETALES = 'Sin nada de vegetales';
-const VEGETALES = ['Sin cebolla', 'Sin tomate', 'Sin lechuga', 'Sin pepinillos'];
-
-const GRUPOS_CAMBIOS = [
-  { titulo: 'Quitar', emo: '🚫', tipos: ['hamburguesa', 'plato'], opciones: ['Sin cebolla', 'Sin tomate', 'Sin lechuga', 'Sin pepinillos', 'Sin salsas', 'Sin queso', 'Sin sal', SIN_VEGETALES] },
-  { titulo: 'Agregar', emo: '➕', tipos: ['hamburguesa', 'plato'], opciones: ['Extra queso', 'Extra carne', 'Extra tocineta', 'Salsas aparte', 'Extra salsas'] },
-  { titulo: 'Cómo prepararla', emo: '👩‍🍳', tipos: ['hamburguesa', 'plato'], opciones: ['Partida a la mitad', 'Bien asada', 'Término medio', 'Sin tostar el pan', 'Empacada aparte'] },
-  { titulo: 'Cómo servirla', emo: '🥤', tipos: ['bebida'], opciones: ['Sin hielo', 'Con hielo', 'Bien fría', 'Sin pitillo'] }
-];
+const API = 'http://localhost:8080/api';
+// El navegador administra la interacción y la vista; el backend valida y calcula los datos del negocio.
+const sesion = () => sessionStorage.getItem('rol');
+async function api(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (sesion()) headers['X-Role'] = sesion();
+  const response = await fetch(`${API}${path}`, { ...options, headers });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message || `Error HTTP ${response.status}`);
+  }
+  return response.status === 204 ? null : response.json();
+}
 
 let menu = [];
+let gruposCambios = [];
+let destinosRapidos = [];
+let tiposMenu = [];
 let pedidos = [];      // pedidos abiertos (cocinando / listo) con items_pedido
 let historial = [];    // pedidos del día (solo admin)
 let destinoElegido = null;
@@ -37,7 +25,8 @@ let sonidoActivo = true;
 let conectado = false;
 let filtroEstado = 'todos';
 let textoBusqueda = '';
-let temporizadorRecarga = null;
+let solicitudCotizacion = 0;
+let claveCotizacion = '';
 
 const $ = id => document.getElementById(id);
 const pesos = n => '$' + Number(n).toLocaleString('es-CO');
@@ -56,10 +45,8 @@ function actualizarPlaceholderPin() {
 }
 
 async function obtenerRol() {
-  const { data: { session } } = await db.auth.getSession();
-  if (!session) return null;
-  const { data } = await db.from('perfiles').select('rol').eq('user_id', session.user.id).maybeSingle();
-  return data ? data.rol : null;
+  // TODO: [TAREA PARA COMPAÑERO 4] Enviar el token guardado en sessionStorage a un endpoint de validación y devolver el rol solo si sigue vigente; si expira, borrar sesión y redirigir al login.
+  return sesion();
 }
 
 async function procesarLogin(e) {
@@ -68,17 +55,8 @@ async function procesarLogin(e) {
   const pin = $('campo-pin').value.trim();
   const reintentar = `<button class="btn btn-papel" onclick="cerrarDialogo()">Intentar de nuevo</button>`;
 
-  const { error } = await db.auth.signInWithPassword({ email: EMAILS_ROL[rol], password: PREFIJO_PIN + pin });
-  if (error) {
-    abrirDialogo('Acceso Denegado', 'El PIN ingresado es incorrecto.', reintentar);
-    return;
-  }
-  const rolReal = await obtenerRol();
-  if (rolReal !== rol) {
-    await db.auth.signOut();
-    abrirDialogo('Acceso Denegado', 'Tu usuario no tiene permiso para este rol.', reintentar);
-    return;
-  }
+  try { await api('/auth/login', { method: 'POST', body: JSON.stringify({ rol, pin }) }); sessionStorage.setItem('rol', rol); }
+  catch (error) { abrirDialogo('Acceso Denegado', error.message, reintentar); return; }
   window.location.href = rol === 'mostrador' ? 'mostrador.html' : rol === 'cocina' ? 'cocina.html' : 'admin.html';
 }
 
@@ -86,42 +64,24 @@ async function procesarLogin(e) {
    Carga de datos
    --------------------------------------------------------------- */
 async function cargarMenu() {
-  const { data, error } = await db.from('menu').select('*').eq('eliminado', false).order('id');
-  if (!error) menu = data;
+  menu = await api('/menu');
+  // El backend es la fuente del catálogo de cambios por tipo de producto.
+  if (gruposCambios.length === 0) gruposCambios = await api('/menu/cambios');
+  if (destinosRapidos.length === 0) destinosRapidos = await api('/pedidos/destinos');
+  if (tiposMenu.length === 0) tiposMenu = await api('/menu/tipos');
 }
 
 async function cargarPedidos() {
-  const { data, error } = await db.from('pedidos')
-    .select('*, items_pedido(*)')
-    .in('estado', ['cocinando', 'listo'])
-    .order('creado');
-  if (!error) pedidos = data;
-}
-
-function inicioDelDia() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+  pedidos = await api('/pedidos?estado=cocinando,listo');
 }
 
 async function cargarAdmin() {
-  const [est, his] = await Promise.all([
-    db.rpc('estadisticas_dia'),
-    db.from('pedidos').select('*, items_pedido(*)').gte('creado', inicioDelDia()).order('creado', { ascending: false })
-  ]);
+  const his = await api('/pedidos?hoy=true');
   const kpi = document.querySelectorAll('.kpi-valor');
-  if (est.data && est.data[0] && kpi.length >= 3) {
-    kpi[0].textContent = pesos(est.data[0].ventas);
-    kpi[1].textContent = est.data[0].entregados;
-    kpi[2].textContent = est.data[0].mas_vendido || '—';
-  }
-  if (!his.error) historial = his.data;
+  // TODO: [TAREA PARA COMPAÑERO 1] Consumir GET /api/admin/estadisticas; el navegador no debe calcular métricas de pedidos.
+  if (kpi.length >= 3) kpi.forEach(valor => { valor.textContent = '—'; });
+  historial = his;
   pintarHistorial();
-}
-
-function programarRecarga() {
-  clearTimeout(temporizadorRecarga);
-  temporizadorRecarga = setTimeout(recargarTodo, 200);
 }
 
 async function recargarTodo() {
@@ -138,20 +98,20 @@ async function recargarTodo() {
 /* ---------------------------------------------------------------
    Tiempo real
    --------------------------------------------------------------- */
-function suscribirTiempoReal() {
-  db.channel('donaburger')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, payload => {
-      if (payload.eventType === 'INSERT' && $('lista-cocina')) avisarPedidoNuevo();
-      programarRecarga();
-    })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'menu' }, programarRecarga)
-    .subscribe(estado => {
-      conectado = estado === 'SUBSCRIBED';
-      pintarConexion();
-    });
-
-  // Respaldo por si se cae el websocket
-  setInterval(recargarTodo, 15000);
+async function suscribirTiempoReal() {
+  conectado = true; pintarConexion();
+  let idsPrevios = new Set(pedidos.map(p => p.id));
+  // Polling: detecta pedidos nuevos en cocina y cambios de estado en las vistas compartidas.
+  setInterval(async () => {
+    try {
+      const anteriores = idsPrevios;
+      await recargarTodo();
+      const actuales = new Set(pedidos.map(p => p.id));
+      if ($('lista-cocina') && [...actuales].some(id => !anteriores.has(id))) avisarPedidoNuevo();
+      idsPrevios = actuales; conectado = true;
+    } catch (_) { conectado = false; }
+    pintarConexion();
+  }, 3500);
   // Refresca los minutos de espera de los tiquetes
   setInterval(pintarTiquetes, 30000);
 }
@@ -184,10 +144,10 @@ function verPestana(cual) {
 
 function pintarDestinos() {
   if (!$('rejilla-destinos')) return;
-  const esRapido = DESTINOS_RAPIDOS.includes(destinoElegido);
+  const esRapido = destinosRapidos.includes(destinoElegido);
   const conNombre = destinoElegido && !esRapido;
   $('rejilla-destinos').innerHTML =
-    DESTINOS_RAPIDOS.map(d => `<button class="chip" aria-pressed="${destinoElegido === d}" onclick="elegirDestino('${d}')">${d}</button>`).join('')
+    destinosRapidos.map(d => `<button class="chip" aria-pressed="${destinoElegido === d}" onclick="elegirDestino('${d}')">${d}</button>`).join('')
     + `<button class="chip chip-ancho" aria-pressed="${conNombre}" onclick="pedirNombre()">${conNombre ? '👤 ' + esc(destinoElegido) : '✏️ A nombre de…'}</button>`;
 }
 
@@ -239,7 +199,7 @@ function agregar(idProd) {
   if (!p) return;
   const existente = carrito.find(i => i.idProd === idProd && i.notas.length === 0);
   if (existente) existente.cant++;
-  else carrito.push({ idProd, nombre: p.nombre, precio: p.precio, cant: 1, notas: [] });
+  else carrito.push({ idProd, cant: 1, notas: [] });
   pintarProductos();
   pintarComanda();
 }
@@ -256,7 +216,7 @@ function abrirCambios(idx) {
   const item = carrito[idx];
   const prod = menu.find(p => p.id === item.idProd);
   const tipo = prod ? prod.tipo : 'plato';
-  const grupos = GRUPOS_CAMBIOS.map((g, gi) => ({ g, gi })).filter(({ g }) => g.tipos.includes(tipo));
+  const grupos = gruposCambios.map((g, gi) => ({ g, gi })).filter(({ g }) => g.tipos.includes(tipo));
 
   const html = grupos.map(({ g, gi }) => `
     <p><b>${g.emo} ${g.titulo}</b></p>
@@ -265,21 +225,31 @@ function abrirCambios(idx) {
     </div>`).join('')
     + `<div style="height:.9rem"></div><button class="btn btn-verde btn-xl" onclick="cerrarDialogo();pintarComanda()">Listo</button>`;
 
-  abrirDialogo('Cambios: ' + item.nombre, 'Toca las opciones que pidió el cliente.', html);
+  abrirDialogo('Cambios: ' + (prod ? prod.nombre : 'producto'), 'Toca las opciones que pidió el cliente.', html);
 }
 
-function alternarNota(idx, gi, oi) {
+async function alternarNota(idx, gi, oi) {
   const item = carrito[idx];
-  const op = GRUPOS_CAMBIOS[gi].opciones[oi];
+  const op = gruposCambios[gi].opciones[oi];
   if (item.notas.includes(op)) {
     item.notas = item.notas.filter(n => n !== op);
   } else {
     item.notas.push(op);
-    // "Sin nada de vegetales" reemplaza a los sin-vegetal individuales y viceversa
-    if (op === SIN_VEGETALES) item.notas = item.notas.filter(n => !VEGETALES.includes(n));
-    if (VEGETALES.includes(op)) item.notas = item.notas.filter(n => n !== SIN_VEGETALES);
+  }
+
+  // El servicio valida las opciones, elimina repeticiones y resuelve notas incompatibles.
+  try {
+    const cotizacion = await api('/pedidos/cotizar', {
+      method: 'POST',
+      body: JSON.stringify({ items: carrito.map(i => ({ id_prod: i.idProd, cant: i.cant, notas: i.notas })) })
+    });
+    cotizacion.items.forEach((cotizado, i) => { carrito[i].notas = cotizado.notas; });
+  } catch (error) {
+    abrirDialogo('Cambio no válido', error.message, `<button class="btn btn-papel" onclick="cerrarDialogo()">Entendido</button>`);
+    return;
   }
   abrirCambios(idx);
+  pintarComanda();
 }
 
 function pintarComanda() {
@@ -288,8 +258,9 @@ function pintarComanda() {
   if (carrito.length === 0) {
     c.innerHTML = `<p class="vacio">Todavía no has agregado nada.<br>Toca un producto arriba.</p>`;
   } else {
-    const total = carrito.reduce((s, i) => s + i.precio * i.cant, 0);
-    c.innerHTML = carrito.map((i, idx) => `
+    c.innerHTML = carrito.map((i, idx) => {
+      const producto = menu.find(p => p.id === i.idProd);
+      return `
       <div class="linea-item">
         <div class="paso-cant">
           <button onclick="cambiarCantidad(${idx},-1)">−</button>
@@ -297,18 +268,51 @@ function pintarComanda() {
           <button onclick="cambiarCantidad(${idx},1)">+</button>
         </div>
         <div class="txt">
-          <b>${esc(i.nombre)}</b>
+          <b>${esc(producto ? producto.nombre : 'Producto')}</b>
           ${i.notas.length ? `<small>${esc(i.notas.join(', '))}</small>` : ''}
           <button class="btn-fila" onclick="abrirCambios(${idx})">✏️ Cambios</button>
         </div>
       </div>
-    `).join('') + `<div class="total"><span>Total</span><span class="cifra">${pesos(total)}</span></div>`;
+    `;
+    }).join('') + `<div class="total"><span>Total</span><span class="cifra" id="total-comanda">Calculando…</span></div>`;
+    actualizarTotalComanda();
   }
   const btn = $('btn-enviar');
   if (btn) {
     const cuantos = carrito.reduce((s, i) => s + i.cant, 0);
     btn.disabled = cuantos === 0 || !destinoElegido;
     btn.textContent = !destinoElegido ? 'Primero di para quién es' : (cuantos === 0 ? 'Toca las comidas' : `Enviar a cocina (${cuantos})`);
+  }
+}
+
+// El total mostrado es una cotización del backend con precios consultados en el menú.
+async function actualizarTotalComanda() {
+  const total = $('total-comanda');
+  if (!total || carrito.length === 0) {
+    claveCotizacion = '';
+    return;
+  }
+
+  const items = carrito.map(i => ({ id_prod: i.idProd, cant: i.cant, notas: i.notas }));
+  const preciosActuales = items.map(item => menu.find(p => p.id === item.id_prod)?.precio ?? null);
+  const claveActual = JSON.stringify({ items, precios: preciosActuales });
+  if (claveActual === claveCotizacion && total.textContent !== 'Calculando…') return;
+
+  claveCotizacion = claveActual;
+  const solicitudActual = ++solicitudCotizacion;
+  try {
+    const cotizacion = await api('/pedidos/cotizar', {
+      method: 'POST',
+      body: JSON.stringify({ items })
+    });
+    if (solicitudActual === solicitudCotizacion && $('total-comanda')) {
+      $('total-comanda').textContent = pesos(cotizacion.total);
+    }
+  } catch (error) {
+    claveCotizacion = '';
+    if (solicitudActual === solicitudCotizacion && $('total-comanda')) {
+      $('total-comanda').textContent = 'No disponible';
+    }
   }
 }
 
@@ -319,9 +323,8 @@ async function enviarACocina() {
 
   // El servidor recalcula nombres, precios y total desde el menú
   const items = carrito.map(i => ({ id_prod: i.idProd, cant: i.cant, notas: i.notas }));
-  const { error } = await db.rpc('crear_pedido', { p_destino: destinoElegido, p_items: items });
-
-  if (error) {
+  try { await api('/pedidos', { method: 'POST', body: JSON.stringify({ destino: destinoElegido, items }) }); }
+  catch (error) {
     abrirDialogo('No se pudo enviar', error.message, `<button class="btn btn-papel" onclick="cerrarDialogo()">Entendido</button>`);
     pintarComanda();
     return;
@@ -331,7 +334,7 @@ async function enviarACocina() {
   pintarDestinos();
   pintarProductos();
   pintarComanda();
-  mostrarAviso('Pedido enviado a cocina', false);
+  mostrarAviso('Pedido enviado a cocina');
   await cargarPedidos();
   pintarTiquetes();
   verPestana('curso');
@@ -401,8 +404,8 @@ function pintarTiquetes() {
 
 async function ejecutar(id, accion) {
   const estados = { listo: 'listo', devolver: 'cocinando', entregar: 'entregado', cancelar: 'cancelado' };
-  const { error } = await db.rpc('cambiar_estado', { p_id: id, p_estado: estados[accion] });
-  if (error) {
+  try { await api(`/pedidos/${id}/estado`, { method: 'PATCH', body: JSON.stringify({ estado: estados[accion] }) }); }
+  catch (error) {
     abrirDialogo('No se pudo actualizar', error.message, `<button class="btn btn-papel" onclick="cerrarDialogo()">Entendido</button>`);
   }
   await cargarPedidos();
@@ -434,7 +437,6 @@ function pintarMenuAdmin() {
 
 function dialogoProducto(id) {
   const p = id ? menu.find(x => x.id === id) : null;
-  const tipos = ['hamburguesa', 'plato', 'bebida'];
   abrirDialogo(p ? 'Cambiar producto' : 'Agregar producto', '',
     `<input id="f-nombre" class="campo" placeholder="Nombre" maxlength="60" value="${esc(p ? p.nombre : '')}">
      <div style="height:.6rem"></div>
@@ -443,7 +445,7 @@ function dialogoProducto(id) {
      <input id="f-emo" class="campo" placeholder="Emoji (ej: 🍔)" maxlength="4" value="${esc(p ? p.emo : '')}">
      <div style="height:.6rem"></div>
      <select id="f-tipo" class="campo">
-       ${tipos.map(t => `<option value="${t}" ${p && p.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}
+       ${tiposMenu.map(t => `<option value="${t}" ${p && p.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}
      </select>
      <div style="height:.9rem"></div>
      <button class="btn btn-verde btn-xl" onclick="guardarProducto(${id || 'null'})">Guardar</button>
@@ -453,19 +455,15 @@ function dialogoProducto(id) {
 
 async function guardarProducto(id) {
   const datos = {
-    nombre: $('f-nombre').value.trim(),
+    nombre: $('f-nombre').value,
     precio: parseInt($('f-precio').value, 10),
-    emo: $('f-emo').value.trim() || '🍽️',
+    emo: $('f-emo').value,
     tipo: $('f-tipo').value
   };
-  if (!datos.nombre || isNaN(datos.precio) || datos.precio < 0) {
-    $('dlg-texto').textContent = 'Escribe un nombre y un precio válido.';
-    return;
-  }
-  const { error } = id
-    ? await db.from('menu').update(datos).eq('id', id)
-    : await db.from('menu').insert(datos);
-  if (error) { $('dlg-texto').textContent = error.message; return; }
+
+  // El servidor normaliza y valida el producto; aquí solo se recogen los valores del formulario.
+  try { await api(id ? `/menu/${id}` : '/menu', { method: id ? 'PUT' : 'POST', body: JSON.stringify(datos) }); }
+  catch (error) { $('dlg-texto').textContent = error.message; return; }
   cerrarDialogo();
   await cargarMenu();
   pintarMenuAdmin();
@@ -481,8 +479,8 @@ function confirmarQuitar(id) {
 
 async function quitarProducto(id) {
   cerrarDialogo();
-  const { error } = await db.from('menu').update({ eliminado: true }).eq('id', id); // soft delete
-  if (error) {
+  try { await api(`/menu/${id}`, { method: 'DELETE' }); } // soft delete
+  catch (error) {
     abrirDialogo('No se pudo quitar', error.message, `<button class="btn btn-papel" onclick="cerrarDialogo()">Entendido</button>`);
     return;
   }
@@ -538,6 +536,7 @@ function iniciarAdmin() {
 
   const busqueda = document.querySelector('.input-busqueda');
   if (busqueda) busqueda.addEventListener('input', e => { textoBusqueda = e.target.value.trim(); pintarHistorial(); });
+  // TODO: [TAREA PARA COMPAÑERO 2] Agregar controles de fecha desde/hasta y un filtro de estado; llamar GET /api/pedidos con parámetros, mantener la búsqueda por cliente/turno y comprobar que cambie la tabla al variar cada filtro.
 }
 
 /* ---------------------------------------------------------------
@@ -589,10 +588,7 @@ function avisarPedidoNuevo() {
    --------------------------------------------------------------- */
 (async function iniciar() {
   // En el login siempre se parte sin sesión (los links "Salir" llevan aquí)
-  if ($('form-login')) {
-    await db.auth.signOut();
-    return;
-  }
+  if ($('form-login')) { sessionStorage.removeItem('rol'); return; }
 
   const rol = await obtenerRol();
   const requerido = $('panel-nuevo') ? 'mostrador' : $('lista-cocina') ? 'cocina' : $('lista-menu') ? 'admin' : null;
@@ -601,8 +597,8 @@ function avisarPedidoNuevo() {
     return;
   }
 
+  await recargarTodo();
   if ($('lista-menu')) iniciarAdmin();
   pintarDestinos();
-  await recargarTodo();
   suscribirTiempoReal();
 })();
