@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -45,7 +44,6 @@ record EstadoRequest(@NotBlank(message = "Indica el estado") String estado) {}
 record GrupoCambios(String titulo, String emo, List<String> tipos, List<String> opciones) {}
 record CotizacionItem(Long id_prod, String nombre, Integer precio, Integer cant, List<String> notas) {}
 record CotizacionResponse(Integer total, List<CotizacionItem> items) {}
-record EstadisticasResponse(long ventas, long entregados, long promedio, String masVendido) {}
 
 /* Devuelve los errores esperados de la API con un mensaje JSON uniforme. */
 @RestControllerAdvice
@@ -263,26 +261,8 @@ class AppService {
         return pedidos.save(pedido);
     }
 
-    /** Métricas del día en zona Bogotá: solo cuentan pedidos entregados. */
-    @Transactional(readOnly = true)
-    EstadisticasResponse estadisticasHoy() {
-        LocalDate hoy = LocalDate.now(RESTAURANT_ZONE);
-        OffsetDateTime desde = hoy.atStartOfDay(RESTAURANT_ZONE).toOffsetDateTime();
-        OffsetDateTime hasta = hoy.plusDays(1).atStartOfDay(RESTAURANT_ZONE).toOffsetDateTime();
-
-        long ventas = pedidos.sumarVentasEntregadas(desde, hasta);
-        long entregados = pedidos.countByEstadoAndCreadoGreaterThanEqualAndCreadoLessThan(
-                "entregado", desde, hasta);
-        long promedio = entregados == 0 ? 0 : Math.round((double) ventas / entregados);
-
-        String masVendido = pedidos.productosMasVendidos(desde, hasta, PageRequest.of(0, 1))
-                .stream()
-                .findFirst()
-                .map(ProductoVendido::getNombre)
-                .orElse("—");
-
-        return new EstadisticasResponse(ventas, entregados, promedio, masVendido);
-    }    // TODO: [TAREA PARA COMPAÑERO 3] Añadir stock/disponibilidad en Producto y descontarlo en esta transacción; rechazar pedidos que excedan existencias.
+    // TODO: [TAREA PARA COMPAÑERO 1] Calcular ventas entregadas, cantidad y promedio de tickets, y producto más vendido para hoy. Excluir cancelados y devolver un DTO de estadísticas.
+    // TODO: [TAREA PARA COMPAÑERO 3] Añadir stock/disponibilidad en Producto y descontarlo en esta transacción; rechazar pedidos que excedan existencias.
 
     private Producto productoDisponible(Long id) {
         return menu.findById(id)
@@ -362,13 +342,8 @@ class ApiController {
         return service.listarDestinosRapidos();
     }
 
-    @GetMapping("/admin/estadisticas")
-    EstadisticasResponse estadisticas(@RequestHeader("X-Role") String rol) {
-        if (!"admin".equals(exigirRol(rol))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo admin puede ver las estadísticas");
-        }
-        return service.estadisticasHoy();
-    }
+    // TODO: [TAREA PARA COMPAÑERO 1] Agregar GET /api/admin/estadisticas protegido para admin y conectar el DTO de métricas de AppService.
+
     @PostMapping("/menu")
     Producto crearProducto(@RequestHeader("X-Role") String rol, @Valid @RequestBody MenuRequest request) {
         exigirAdmin(rol);
