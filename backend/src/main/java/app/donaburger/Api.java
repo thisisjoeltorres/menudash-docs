@@ -17,44 +17,156 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 /* Los DTOs definen el contrato HTTP sin exponer las entidades JPA. */
-record LoginRequest(@NotBlank String rol, @NotBlank String pin) {}
-record LoginResponse(String rol, String token) {}
-record MenuRequest(
-        @NotBlank(message = "Escribe el nombre del producto") String nombre,
-        @NotNull(message = "Escribe un precio") @PositiveOrZero(message = "El precio no puede ser negativo") Integer precio,
-        String emo,
-        @NotBlank(message = "Selecciona un tipo de producto") String tipo) {}
-record ItemRequest(
-        @NotNull(message = "Selecciona un producto") Long id_prod,
-        @NotNull(message = "Indica la cantidad") @Positive(message = "La cantidad debe ser mayor que cero") Integer cant,
-        List<String> notas) {}
-record PedidoRequest(
-        @NotBlank(message = "Escribe el destino del pedido") String destino,
-        @NotEmpty(message = "Agrega al menos un producto") List<@Valid ItemRequest> items) {}
-record CotizarRequest(@NotEmpty(message = "Agrega al menos un producto") List<@Valid ItemRequest> items) {}
-record EstadoRequest(@NotBlank(message = "Indica el estado") String estado) {}
-record GrupoCambios(String titulo, String emo, List<String> tipos, List<String> opciones) {}
-record CotizacionItem(Long id_prod, String nombre, Integer precio, Integer cant, List<String> notas) {}
-record CotizacionResponse(Integer total, List<CotizacionItem> items) {}
+class LoginRequest {
+    @NotBlank public String rol;
+    @NotBlank public String pin;
+
+    public String rol() { return rol; }
+    public String pin() { return pin; }
+}
+
+class LoginResponse {
+    public String rol;
+    public String token;
+
+    public LoginResponse(String rol, String token) {
+        this.rol = rol;
+        this.token = token;
+    }
+}
+
+class MenuRequest {
+    @NotBlank(message = "Escribe el nombre del producto")
+    public String nombre;
+
+    @NotNull(message = "Escribe un precio")
+    @PositiveOrZero(message = "El precio no puede ser negativo")
+    public Integer precio;
+
+    public String emo;
+
+    @NotBlank(message = "Selecciona un tipo de producto")
+    public String tipo;
+
+    public String nombre() { return nombre; }
+    public Integer precio() { return precio; }
+    public String emo() { return emo; }
+    public String tipo() { return tipo; }
+}
+
+class ItemRequest {
+    @NotNull(message = "Selecciona un producto")
+    public Long id_prod;
+
+    @NotNull(message = "Indica la cantidad")
+    @Positive(message = "La cantidad debe ser mayor que cero")
+    public Integer cant;
+
+    public List<String> notas;
+
+    public Long id_prod() { return id_prod; }
+    public Integer cant() { return cant; }
+    public List<String> notas() { return notas; }
+}
+
+class PedidoRequest {
+    @NotBlank(message = "Escribe el destino del pedido")
+    public String destino;
+
+    @NotEmpty(message = "Agrega al menos un producto")
+    public List<@Valid ItemRequest> items;
+
+    public String destino() { return destino; }
+    public List<ItemRequest> items() { return items; }
+}
+
+class CotizarRequest {
+    @NotEmpty(message = "Agrega al menos un producto")
+    public List<@Valid ItemRequest> items;
+
+    public List<ItemRequest> items() { return items; }
+}
+
+class EstadoRequest {
+    @NotBlank(message = "Indica el estado")
+    public String estado;
+
+    public String estado() { return estado; }
+}
+
+class GrupoCambios {
+    public String titulo;
+    public String emo;
+    public List<String> tipos;
+    public List<String> opciones;
+
+    public GrupoCambios(String titulo, String emo, List<String> tipos, List<String> opciones) {
+        this.titulo = titulo;
+        this.emo = emo;
+        this.tipos = tipos;
+        this.opciones = opciones;
+    }
+
+    public List<String> tipos() { return tipos; }
+    public List<String> opciones() { return opciones; }
+}
+
+class CotizacionItem {
+    public Long id_prod;
+    public String nombre;
+    public Integer precio;
+    public Integer cant;
+    public List<String> notas;
+
+    public CotizacionItem(Long id_prod, String nombre, Integer precio, Integer cant, List<String> notas) {
+        this.id_prod = id_prod;
+        this.nombre = nombre;
+        this.precio = precio;
+        this.cant = cant;
+        this.notas = notas;
+    }
+
+    public Long id_prod() { return id_prod; }
+    public String nombre() { return nombre; }
+    public Integer precio() { return precio; }
+    public Integer cant() { return cant; }
+    public List<String> notas() { return notas; }
+}
+
+class CotizacionResponse {
+    public Integer total;
+    public List<CotizacionItem> items;
+
+    public CotizacionResponse(Integer total, List<CotizacionItem> items) {
+        this.total = total;
+        this.items = items;
+    }
+
+    public Integer total() { return total; }
+    public List<CotizacionItem> items() { return items; }
+}
 
 /* Devuelve los errores esperados de la API con un mensaje JSON uniforme. */
 @RestControllerAdvice
 class ApiErrorHandler {
-    @ExceptionHandler(ResponseStatusException.class)
+  @ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<Map<String, String>> handle(ResponseStatusException exception) {
         String message = Optional.ofNullable(exception.getReason()).orElse("Solicitud inválida");
         return ResponseEntity.status(exception.getStatusCode()).body(Map.of("message", message));
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
+   @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException exception) {
         String message = exception.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getDefaultMessage())
@@ -81,7 +193,6 @@ class AuthService {
         Usuario usuario = usuarios.findByRolAndPinAndActivoTrue(request.rol(), request.pin())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "PIN incorrecto"));
 
-        // Sesión demostrativa. La validación formal del token queda como tarea del equipo.
         return new LoginResponse(usuario.rol, java.util.UUID.randomUUID().toString());
     }
 }
@@ -170,22 +281,47 @@ class AppService {
         menu.save(producto);
     }
 
-    List<Pedido> listarPedidos(String estado, boolean hoy) {
-        if (hoy) {
-            OffsetDateTime inicio = LocalDate.now(RESTAURANT_ZONE)
-                    .atStartOfDay(RESTAURANT_ZONE)
-                    .toOffsetDateTime();
-            return pedidos.findByCreadoGreaterThanEqualOrderByCreadoDesc(inicio);
+    @Transactional(readOnly = true)
+    List<Pedido> listarPedidos(String desde, String hasta, String estado, String busqueda, boolean hoy) {
+        LocalDate fechaDesde = parsearFechaOpcional(desde, "desde");
+        LocalDate fechaHasta = parsearFechaOpcional(hasta, "hasta");
+
+        if (hoy && fechaDesde == null && fechaHasta == null) {
+            LocalDate hoyBogota = LocalDate.now(RESTAURANT_ZONE);
+            fechaDesde = hoyBogota;
+            fechaHasta = hoyBogota;
         }
 
+        if (fechaDesde != null && fechaHasta != null && fechaDesde.isAfter(fechaHasta)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La fecha 'desde' no puede ser mayor que 'hasta'");
+        }
+
+        OffsetDateTime inicioRango = fechaDesde != null
+                ? fechaDesde.atStartOfDay(RESTAURANT_ZONE).toOffsetDateTime()
+                : null;
+        OffsetDateTime finExclusivoRango = fechaHasta != null
+                ? fechaHasta.plusDays(1).atStartOfDay(RESTAURANT_ZONE).toOffsetDateTime()
+                : null;
+
+        boolean filtrarEstados = false;
+        List<String> estadosFiltrados = ORDER_STATES.stream().toList();
         if (estado != null && !estado.isBlank()) {
-            List<String> estadosSolicitados = List.of(estado.split(","));
-            if (!ORDER_STATES.containsAll(estadosSolicitados)) {
+            List<String> solicitados = Arrays.stream(estado.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+            if (solicitados.isEmpty() || !ORDER_STATES.containsAll(solicitados)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Filtro de estado inválido");
             }
-            return pedidos.findByEstadoInOrderByCreadoAsc(estadosSolicitados);
+            filtrarEstados = true;
+            estadosFiltrados = solicitados;
         }
-        return pedidos.findAllByOrderByCreadoAsc();
+
+        String termino = (busqueda == null || busqueda.isBlank())
+                ? null
+                : busqueda.trim().toLowerCase(Locale.ROOT);
+
+        return pedidos.buscarHistorial(inicioRango, finExclusivoRango, filtrarEstados, estadosFiltrados, termino);
     }
 
     /** Cotiza con precios consultados en PostgreSQL; el navegador nunca envía precios. */
@@ -209,7 +345,6 @@ class AppService {
     Pedido crearPedido(PedidoRequest request) {
         CotizacionResponse cotizacion = cotizar(request.items());
 
-        // Bloquea una fila estable para que dos solicitudes no reciban el mismo turno.
         if (pedidos.bloquearTurno().isEmpty()) {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, "Falta el usuario admin semilla para asignar turnos");
@@ -264,6 +399,19 @@ class AppService {
     // TODO: [TAREA PARA COMPAÑERO 1] Calcular ventas entregadas, cantidad y promedio de tickets, y producto más vendido para hoy. Excluir cancelados y devolver un DTO de estadísticas.
     // TODO: [TAREA PARA COMPAÑERO 3] Añadir stock/disponibilidad en Producto y descontarlo en esta transacción; rechazar pedidos que excedan existencias.
 
+    private LocalDate parsearFechaOpcional(String valor, String nombreParametro) {
+        if (valor == null || valor.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(valor.trim());
+        } catch (DateTimeParseException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Parámetro '" + nombreParametro + "' inválido; usa formato YYYY-MM-DD");
+        }
+    }
+
     private Producto productoDisponible(Long id) {
         return menu.findById(id)
                 .filter(producto -> !producto.eliminado)
@@ -289,7 +437,6 @@ class AppService {
             notasUnicas.add(nota);
         }
 
-        // Si llegan notas incompatibles, prevalece la opción de vegetales seleccionada al final.
         int indiceGeneral = notasRecibidas.lastIndexOf(NOTA_SIN_VEGETALES);
         int indiceVegetal = -1;
         for (int i = 0; i < notasRecibidas.size(); i++) {
@@ -386,13 +533,15 @@ class ApiController {
     }
 
     @GetMapping("/pedidos")
-    // TODO: [TAREA PARA COMPAÑERO 2] Aceptar desde/hasta y estado como filtros, validarlos en AppService y devolver solo los pedidos que cumplan todos los criterios.
     List<Pedido> pedidos(
             @RequestHeader("X-Role") String rol,
+            @RequestParam(required = false) String desde,
+            @RequestParam(required = false) String hasta,
             @RequestParam(required = false) String estado,
+            @RequestParam(required = false) String busqueda,
             @RequestParam(defaultValue = "false") boolean hoy) {
         exigirRol(rol);
-        return service.listarPedidos(estado, hoy);
+        return service.listarPedidos(desde, hasta, estado, busqueda, hoy);
     }
 
     @PatchMapping("/pedidos/{id}/estado")

@@ -126,4 +126,28 @@ interface PedidoRepo extends JpaRepository<Pedido, Long> {
             where (creado at time zone 'America/Bogota')::date = :hoy
             """, nativeQuery = true)
     int maxTurnoHoy(@Param("hoy") java.sql.Date hoy);
+
+    @Query("""
+            select distinct p
+            from Pedido p
+            left join p.items_pedido item
+            where p.creado is not null
+              and (:desde is null or p.creado >= :desde)
+              and (:hastaExclusivo is null or p.creado < :hastaExclusivo)
+              and (:filtrarEstados = false or p.estado in :estados)
+              and (
+                    :busqueda is null
+                    or lower(coalesce(p.destino, '')) like concat('%', :busqueda, '%')
+                    or cast(p.turno as string) like concat('%', :busqueda, '%')
+                    or cast(p.id as string) like concat('%', :busqueda, '%')
+                    or lower(coalesce(item.nombre, '')) like concat('%', :busqueda, '%')
+                  )
+            order by p.creado desc
+            """)
+    List<Pedido> buscarHistorial(
+            @Param("desde") OffsetDateTime desde,
+            @Param("hastaExclusivo") OffsetDateTime hastaExclusivo,
+            @Param("filtrarEstados") boolean filtrarEstados,
+            @Param("estados") Collection<String> estados,
+            @Param("busqueda") String busqueda);
 }
