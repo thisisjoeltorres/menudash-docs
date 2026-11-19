@@ -51,6 +51,7 @@ class Producto {
     public Integer precio;
     public String emo;
     public String tipo;
+    public Integer stock = 0;
     public boolean eliminado;
     public OffsetDateTime actualizado;
 }
@@ -106,6 +107,10 @@ interface UsuarioRepo extends JpaRepository<Usuario, Long> {
 
 interface MenuRepo extends JpaRepository<Producto, Long> {
     List<Producto> findByEliminadoFalseOrderByIdAsc();
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Producto p where p.id = :id and p.eliminado = false")
+    Optional<Producto> findByIdForUpdate(@Param("id") Long id);
+
 }
 
 interface PedidoRepo extends JpaRepository<Pedido, Long> {

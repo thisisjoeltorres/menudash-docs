@@ -14,6 +14,13 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import org.springframework.beans.factory.annotation.Value;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -26,12 +33,14 @@ import java.util.Set;
 
 /* Los DTOs definen el contrato HTTP sin exponer las entidades JPA. */
 record LoginRequest(@NotBlank String rol, @NotBlank String pin) {}
-record LoginResponse(String rol, String token) {}
+record LoginResponse(String rol, String token, OffsetDateTime expiraEn) {}
+record SesionResponse(String rol, OffsetDateTime expiraEn) {}
 record MenuRequest(
         @NotBlank(message = "Escribe el nombre del producto") String nombre,
         @NotNull(message = "Escribe un precio") @PositiveOrZero(message = "El precio no puede ser negativo") Integer precio,
         String emo,
-        @NotBlank(message = "Selecciona un tipo de producto") String tipo) {}
+        @NotBlank(message = "Selecciona un tipo de producto") String tipo,
+        @PositiveOrZero(message = "El stock no puede ser negativo") Integer stock) {}
 record ItemRequest(
         @NotNull(message = "Selecciona un producto") Long id_prod,
         @NotNull(message = "Indica la cantidad") @Positive(message = "La cantidad debe ser mayor que cero") Integer cant,
@@ -66,11 +75,20 @@ class ApiErrorHandler {
 
 @Service
 class AuthService {
+    private static final ZoneId RESTAURANT_ZONE = ZoneId.of("America/Bogota");
     private static final Set<String> ROLES = Set.of("mostrador", "cocina", "admin");
-    private final UsuarioRepo usuarios;
 
-    AuthService(UsuarioRepo usuarios) {
+    private final UsuarioRepo usuarios;
+    private final long sessionTtlSeconds;
+    private final ConcurrentHashMap<String, SesionActiva> sesiones = new ConcurrentHashMap<>();
+
+    record SesionActiva(String rol, Instant expiraEn) {}
+
+    AuthService(
+            UsuarioRepo usuarios,
+            @Value("${SESSION_TTL_SECONDS:28800}") long sessionTtlSeconds) {
         this.usuarios = usuarios;
+        this.sessionTtlSeconds = sessionTtlSeconds;
     }
 
     LoginResponse login(LoginRequest request) {
@@ -81,8 +99,57 @@ class AuthService {
         Usuario usuario = usuarios.findByRolAndPinAndActivoTrue(request.rol(), request.pin())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "PIN incorrecto"));
 
-        // Sesión demostrativa. La validación formal del token queda como tarea del equipo.
-        return new LoginResponse(usuario.rol, java.util.UUID.randomUUID().toString());
+        Instant ahora = Instant.now();
+        sesiones.entrySet().removeIf(entry -> ahora.isAfter(entry.getValue().expiraEn()));
+
+        String token = UUID.randomUUID().toString();
+        Instant expira = ahora.plusSeconds(sessionTtlSeconds);
+        sesiones.put(token, new SesionActiva(usuario.rol, expira));
+
+        return new LoginResponse(
+                usuario.rol,
+                token,
+                expira.atZone(RESTAURANT_ZONE).toOffsetDateTime());
+    }
+
+    SesionActiva validarToken(String authorization) {
+        String token = extraerBearer(authorization);
+        if (token == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Inicia sesión para continuar");
+        }
+
+        SesionActiva sesion = sesiones.get(token);
+        if (sesion == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sesión inválida o cerrada");
+        }
+
+        if (Instant.now().isAfter(sesion.expiraEn())) {
+            sesiones.remove(token);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tu sesión expiró. Inicia sesión nuevamente");
+        }
+        return sesion;
+    }
+
+    SesionResponse obtenerSesion(String authorization) {
+        SesionActiva sesion = validarToken(authorization);
+        return new SesionResponse(
+                sesion.rol(),
+                sesion.expiraEn().atZone(RESTAURANT_ZONE).toOffsetDateTime());
+    }
+
+    void logout(String authorization) {
+        String token = extraerBearer(authorization);
+        if (token != null) {
+            sesiones.remove(token);
+        }
+    }
+
+    private String extraerBearer(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            return null;
+        }
+        String token = authorization.substring(7).trim();
+        return token.isEmpty() ? null : token;
     }
 }
 
@@ -95,10 +162,20 @@ class AuthController {
         this.authService = authService;
     }
 
-    // TODO: [TAREA PARA COMPAÑERO 4] Guardar el token con rol y expiración, validarlo en cada petición y revocarlo al cerrar sesión. No aceptar X-Role sin token válido.
     @PostMapping("/login")
     LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @GetMapping("/sesion")
+    SesionResponse sesion(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        return authService.obtenerSesion(authorization);
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        authService.logout(authorization);
     }
 }
 
@@ -159,6 +236,11 @@ class AppService {
         producto.precio = request.precio();
         producto.emo = request.emo() == null || request.emo().isBlank() ? "🍽️" : request.emo().trim();
         producto.tipo = request.tipo();
+        if (request.stock() != null) {
+         producto.stock = request.stock();
+     } else if (id == null) {
+         producto.stock = 0;
+     }
         producto.actualizado = OffsetDateTime.now();
         return menu.save(producto);
     }
@@ -205,38 +287,75 @@ class AppService {
     }
 
     /** Crea el pedido y sus productos en una transacción con precios y turno calculados en Java. */
-    @Transactional
-    Pedido crearPedido(PedidoRequest request) {
-        CotizacionResponse cotizacion = cotizar(request.items());
+@Transactional
+ Pedido crearPedido(PedidoRequest request) {
+     Map<Long, Integer> cantidadesPorProducto = new TreeMap<>();
+     for (ItemRequest item : request.items()) {
+         cantidadesPorProducto.merge(item.id_prod(), item.cant(), Math::addExact);
+     }
 
-        // Bloquea una fila estable para que dos solicitudes no reciban el mismo turno.
-        if (pedidos.bloquearTurno().isEmpty()) {
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR, "Falta el usuario admin semilla para asignar turnos");
-        }
-        LocalDate hoy = LocalDate.now(RESTAURANT_ZONE);
-        int siguienteTurno = pedidos.maxTurnoHoy(java.sql.Date.valueOf(hoy)) + 1;
+     Map<Long, Producto> productosBloqueados = new LinkedHashMap<>();
+     for (Map.Entry<Long, Integer> entry : cantidadesPorProducto.entrySet()) {
+         Long idProd = entry.getKey();
+         int cantSolicitada = entry.getValue();
 
-        Pedido pedido = new Pedido();
-        pedido.turno = siguienteTurno;
-        pedido.destino = request.destino().trim();
-        pedido.estado = "cocinando";
-        pedido.total = cotizacion.total();
-        pedido.creado = OffsetDateTime.now(RESTAURANT_ZONE);
-        pedido.actualizado = pedido.creado;
+         Producto producto = menu.findByIdForUpdate(idProd)
+                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Producto no disponible"));
 
-        for (CotizacionItem cotizado : cotizacion.items()) {
-            ItemPedido item = new ItemPedido();
-            item.pedido = pedido;
-            item.idProd = cotizado.id_prod();
-            item.nombre = cotizado.nombre();
-            item.precio = cotizado.precio();
-            item.cant = cotizado.cant();
-            item.notas = cotizado.notas().toArray(String[]::new);
-            pedido.items_pedido.add(item);
-        }
-        return pedidos.save(pedido);
-    }
+         int stockActual = producto.stock == null ? 0 : producto.stock;
+         if (stockActual < cantSolicitada) {
+             throw new ResponseStatusException(
+                     HttpStatus.CONFLICT,
+                     "Stock insuficiente para " + producto.nombre + " (disponible: " + stockActual + ")");
+         }
+         productosBloqueados.put(idProd, producto);
+     }
+
+     List<CotizacionItem> itemsCotizados = new ArrayList<>();
+     int total = 0;
+     for (ItemRequest solicitado : request.items()) {
+         Producto producto = productosBloqueados.get(solicitado.id_prod());
+         List<String> notas = normalizarNotas(producto.tipo, solicitado.notas());
+         total = Math.addExact(total, Math.multiplyExact(producto.precio, solicitado.cant()));
+         itemsCotizados.add(new CotizacionItem(
+                 producto.id, producto.nombre, producto.precio, solicitado.cant(), notas));
+     }
+
+     OffsetDateTime ahora = OffsetDateTime.now(RESTAURANT_ZONE);
+     for (Map.Entry<Long, Integer> entry : cantidadesPorProducto.entrySet()) {
+         Producto producto = productosBloqueados.get(entry.getKey());
+         producto.stock = producto.stock - entry.getValue();
+         producto.actualizado = ahora;
+         menu.save(producto);
+     }
+
+     if (pedidos.bloquearTurno().isEmpty()) {
+         throw new ResponseStatusException(
+                 HttpStatus.INTERNAL_SERVER_ERROR, "Falta el usuario admin semilla para asignar turnos");
+     }
+     LocalDate hoy = LocalDate.now(RESTAURANT_ZONE);
+     int siguienteTurno = pedidos.maxTurnoHoy(java.sql.Date.valueOf(hoy)) + 1;
+
+     Pedido pedido = new Pedido();
+     pedido.turno = siguienteTurno;
+     pedido.destino = request.destino().trim();
+     pedido.estado = "cocinando";
+     pedido.total = total;
+     pedido.creado = ahora;
+     pedido.actualizado = ahora;
+
+     for (CotizacionItem cotizado : itemsCotizados) {
+         ItemPedido item = new ItemPedido();
+         item.pedido = pedido;
+         item.idProd = cotizado.id_prod();
+         item.nombre = cotizado.nombre();
+         item.precio = cotizado.precio();
+         item.cant = cotizado.cant();
+         item.notas = cotizado.notas().toArray(String[]::new);
+         pedido.items_pedido.add(item);
+     }
+     return pedidos.save(pedido);
+ }
 
     /** Valida aquí las transiciones por rol; la solicitud del cliente no autoriza cambios. */
     Pedido cambiarEstado(Long id, String estadoNuevo, String rol) {
@@ -315,11 +434,12 @@ class AppService {
 @RestController
 @RequestMapping("/api")
 class ApiController {
-    private static final Set<String> ROLES = Set.of("mostrador", "cocina", "admin");
     private final AppService service;
+    private final AuthService authService;
 
-    ApiController(AppService service) {
+    ApiController(AppService service, AuthService authService) {
         this.service = service;
+        this.authService = authService;
     }
 
     @GetMapping("/menu")
@@ -341,79 +461,8 @@ class ApiController {
     List<String> destinosRapidos() {
         return service.listarDestinosRapidos();
     }
-
-    // TODO: [TAREA PARA COMPAÑERO 1] Agregar GET /api/admin/estadisticas protegido para admin y conectar el DTO de métricas de AppService.
-
-    @PostMapping("/menu")
-    Producto crearProducto(@RequestHeader("X-Role") String rol, @Valid @RequestBody MenuRequest request) {
-        exigirAdmin(rol);
-        return service.guardarProducto(null, request);
-    }
-
-    @PutMapping("/menu/{id}")
-    Producto editarProducto(
-            @RequestHeader("X-Role") String rol,
-            @PathVariable Long id,
-            @Valid @RequestBody MenuRequest request) {
-        exigirAdmin(rol);
-        return service.guardarProducto(id, request);
-    }
-
-    @DeleteMapping("/menu/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    void eliminarProducto(@RequestHeader("X-Role") String rol, @PathVariable Long id) {
-        exigirAdmin(rol);
-        service.eliminarProducto(id);
-    }
-
-    @PostMapping("/pedidos/cotizar")
-    CotizacionResponse cotizar(
-            @RequestHeader("X-Role") String rol,
-            @Valid @RequestBody CotizarRequest request) {
-        exigirRol(rol);
-        return service.cotizar(request.items());
-    }
-
-    @PostMapping("/pedidos")
-    @ResponseStatus(HttpStatus.CREATED)
-    Pedido crearPedido(
-            @RequestHeader("X-Role") String rol,
-            @Valid @RequestBody PedidoRequest request) {
-        if (!Set.of("mostrador", "admin").contains(exigirRol(rol))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No autorizado para crear pedidos");
-        }
-        return service.crearPedido(request);
-    }
-
-    @GetMapping("/pedidos")
-    // TODO: [TAREA PARA COMPAÑERO 2] Aceptar desde/hasta y estado como filtros, validarlos en AppService y devolver solo los pedidos que cumplan todos los criterios.
-    List<Pedido> pedidos(
-            @RequestHeader("X-Role") String rol,
-            @RequestParam(required = false) String estado,
-            @RequestParam(defaultValue = "false") boolean hoy) {
-        exigirRol(rol);
-        return service.listarPedidos(estado, hoy);
-    }
-
-    @PatchMapping("/pedidos/{id}/estado")
-    Pedido cambiarEstado(
-            @RequestHeader("X-Role") String rol,
-            @PathVariable Long id,
-            @Valid @RequestBody EstadoRequest request) {
-        return service.cambiarEstado(id, request.estado(), exigirRol(rol));
-    }
-
-    private void exigirAdmin(String rol) {
-        if (!"admin".equals(exigirRol(rol))) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo admin puede gestionar el menú");
-        }
-    }
-
-    private String exigirRol(String rol) {
-        if (!ROLES.contains(rol)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Inicia sesión para continuar");
-        }
-        return rol;
+private String exigirRol(String authorization) {
+        return authService.validarToken(authorization).rol();
     }
 }
 

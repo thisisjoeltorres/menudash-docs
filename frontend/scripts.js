@@ -1,12 +1,23 @@
 const API = 'http://localhost:8080/api';
 // El navegador administra la interacción y la vista; el backend valida y calcula los datos del negocio.
-const sesion = () => sessionStorage.getItem('rol');
+const obtenerToken = () => sessionStorage.getItem('token');
+const limpiarSesion = () => {
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('rol');
+};
+
 async function api(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-  if (sesion()) headers['X-Role'] = sesion();
+  const token = obtenerToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const response = await fetch(`${API}${path}`, { ...options, headers });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
+    if (response.status === 401 && path !== '/auth/login' && path !== '/auth/logout') {
+      limpiarSesion();
+      if (!$('form-login')) window.location.href = 'login.html';
+    }
     throw new Error(body.message || `Error HTTP ${response.status}`);
   }
   return response.status === 204 ? null : response.json();
@@ -45,8 +56,26 @@ function actualizarPlaceholderPin() {
 }
 
 async function obtenerRol() {
-  // TODO: [TAREA PARA COMPAÑERO 4] Enviar el token guardado en sessionStorage a un endpoint de validación y devolver el rol solo si sigue vigente; si expira, borrar sesión y redirigir al login.
-  return sesion();
+  if (!obtenerToken()) return null;
+  try {
+    const data = await api('/auth/sesion');
+    sessionStorage.setItem('rol', data.rol);
+    return data.rol;
+  } catch (_) {
+    limpiarSesion();
+    return null;
+  }
+}
+
+async function cerrarSesion(e) {
+  if (e) e.preventDefault();
+  try {
+    if (obtenerToken()) {
+      await api('/auth/logout', { method: 'POST' });
+    }
+  } catch (_) {}
+  limpiarSesion();
+  window.location.href = 'login.html';
 }
 
 async function procesarLogin(e) {
@@ -55,9 +84,14 @@ async function procesarLogin(e) {
   const pin = $('campo-pin').value.trim();
   const reintentar = `<button class="btn btn-papel" onclick="cerrarDialogo()">Intentar de nuevo</button>`;
 
-  try { await api('/auth/login', { method: 'POST', body: JSON.stringify({ rol, pin }) }); sessionStorage.setItem('rol', rol); }
-  catch (error) { abrirDialogo('Acceso Denegado', error.message, reintentar); return; }
-  window.location.href = rol === 'mostrador' ? 'mostrador.html' : rol === 'cocina' ? 'cocina.html' : 'admin.html';
+  try {
+    const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({ rol, pin }) });
+    sessionStorage.setItem('token', data.token);
+    sessionStorage.setItem('rol', data.rol);
+    window.location.href = data.rol === 'mostrador' ? 'mostrador.html' : data.rol === 'cocina' ? 'cocina.html' : 'admin.html';
+  } catch (error) {
+    abrirDialogo('Acceso Denegado', error.message, reintentar);
+  }
 }
 
 /* ---------------------------------------------------------------
@@ -179,16 +213,33 @@ function elegirDestino(d) {
   pintarComanda();
 }
 
+function stockRestante(idProd) {
+  const p = menu.find(x => x.id === idProd);
+  if (!p) return 0;
+  const enCarrito = carrito.filter(i => i.idProd === idProd).reduce((s, i) => s + i.cant, 0);
+  return Math.max(0, (p.stock ?? 0) - enCarrito);
+}
+
 function pintarProductos() {
   if (!$('rejilla-productos')) return;
   $('rejilla-productos').innerHTML = menu.map(p => {
+    const stock = p.stock ?? 0;
     const enCarrito = carrito.filter(i => i.idProd === p.id).reduce((s, i) => s + i.cant, 0);
+    const restante = Math.max(0, stock - enCarrito);
+    const agotado = stock <= 0;
+    const sinMas = restante <= 0;
+    const estadoStock = agotado
+      ? `<span class="mas">Agotado</span>`
+      : (enCarrito
+          ? `<span class="cuenta">${enCarrito} (${restante} disp.)</span>`
+          : `<span class="mas">+ Agregar (${restante})</span>`);
+
     return `
-      <button class="producto" onclick="agregar(${p.id})">
+      <button class="producto" onclick="agregar(${p.id})" ${sinMas ? 'disabled style="opacity:.55;cursor:not-allowed;"' : ''}>
         <span class="nom"><span>${esc(p.emo)}</span> ${esc(p.nombre)}</span>
         <span class="fila">
           <span class="precio">${pesos(p.precio)}</span>
-          ${enCarrito ? `<span class="cuenta">${enCarrito}</span>` : `<span class="mas">+ Agregar</span>`}
+          ${estadoStock}
         </span>
       </button>`;
   }).join('');
@@ -197,6 +248,10 @@ function pintarProductos() {
 function agregar(idProd) {
   const p = menu.find(x => x.id === idProd);
   if (!p) return;
+  if (stockRestante(idProd) <= 0) {
+    mostrarAviso(`Sin stock disponible de ${p.nombre}`);
+    return;
+  }
   const existente = carrito.find(i => i.idProd === idProd && i.notas.length === 0);
   if (existente) existente.cant++;
   else carrito.push({ idProd, cant: 1, notas: [] });
@@ -205,6 +260,14 @@ function agregar(idProd) {
 }
 
 function cambiarCantidad(idx, delta) {
+  if (delta > 0) {
+    const item = carrito[idx];
+    const p = menu.find(x => x.id === item.idProd);
+    if (stockRestante(item.idProd) < delta) {
+      mostrarAviso(`No hay más unidades disponibles de ${p ? p.nombre : 'este producto'}`);
+      return;
+    }
+  }
   carrito[idx].cant += delta;
   if (carrito[idx].cant <= 0) carrito.splice(idx, 1);
   pintarProductos();
@@ -260,12 +323,13 @@ function pintarComanda() {
   } else {
     c.innerHTML = carrito.map((i, idx) => {
       const producto = menu.find(p => p.id === i.idProd);
+      const sinMas = stockRestante(i.idProd) <= 0;
       return `
       <div class="linea-item">
         <div class="paso-cant">
           <button onclick="cambiarCantidad(${idx},-1)">−</button>
           <span class="n">${i.cant}</span>
-          <button onclick="cambiarCantidad(${idx},1)">+</button>
+          <button onclick="cambiarCantidad(${idx},1)" ${sinMas ? 'disabled' : ''}>+</button>
         </div>
         <div class="txt">
           <b>${esc(producto ? producto.nombre : 'Producto')}</b>
@@ -284,7 +348,6 @@ function pintarComanda() {
     btn.textContent = !destinoElegido ? 'Primero di para quién es' : (cuantos === 0 ? 'Toca las comidas' : `Enviar a cocina (${cuantos})`);
   }
 }
-
 // El total mostrado es una cotización del backend con precios consultados en el menú.
 async function actualizarTotalComanda() {
   const total = $('total-comanda');
@@ -321,21 +384,24 @@ async function enviarACocina() {
   const btn = $('btn-enviar');
   btn.disabled = true;
 
-  // El servidor recalcula nombres, precios y total desde el menú
+  // El servidor recalcula nombres, precios, total y descuenta stock atómicamente.
   const items = carrito.map(i => ({ id_prod: i.idProd, cant: i.cant, notas: i.notas }));
-  try { await api('/pedidos', { method: 'POST', body: JSON.stringify({ destino: destinoElegido, items }) }); }
-  catch (error) {
+  try {
+    await api('/pedidos', { method: 'POST', body: JSON.stringify({ destino: destinoElegido, items }) });
+  } catch (error) {
     abrirDialogo('No se pudo enviar', error.message, `<button class="btn btn-papel" onclick="cerrarDialogo()">Entendido</button>`);
+    await cargarMenu().catch(() => {});
+    pintarProductos();
     pintarComanda();
     return;
   }
   carrito = [];
   destinoElegido = null;
+  await Promise.all([cargarMenu(), cargarPedidos()]);
   pintarDestinos();
   pintarProductos();
   pintarComanda();
   mostrarAviso('Pedido enviado a cocina');
-  await cargarPedidos();
   pintarTiquetes();
   verPestana('curso');
 }
@@ -423,16 +489,20 @@ function confirmarCancelar(id) {
    --------------------------------------------------------------- */
 function pintarMenuAdmin() {
   if (!$('lista-menu')) return;
-  $('lista-menu').innerHTML = menu.map(p => `
+  $('lista-menu').innerHTML = menu.map(p => {
+    const stock = p.stock ?? 0;
+    const etiquetaStock = stock > 0 ? `Stock: ${stock}` : 'Agotado';
+    return `
     <li class="fila-menu" data-id="${p.id}">
       <span class="fila-menu-emo" aria-hidden="true">${esc(p.emo)}</span>
-      <span class="fila-menu-nombre">${esc(p.nombre)}</span>
+      <span class="fila-menu-nombre">${esc(p.nombre)} <small>(${etiquetaStock})</small></span>
       <span class="fila-menu-precio">${pesos(p.precio)}</span>
       <div class="fila-menu-acciones">
         <button type="button" class="btn-fila btn-cambiar" data-accion="cambiar" aria-label="Cambiar ${esc(p.nombre)}">✏️ Cambiar</button>
         <button type="button" class="btn-fila btn-quitar" data-accion="quitar" aria-label="Quitar ${esc(p.nombre)}">🗑️ Quitar</button>
       </div>
-    </li>`).join('');
+    </li>`;
+  }).join('');
 }
 
 function dialogoProducto(id) {
@@ -441,6 +511,8 @@ function dialogoProducto(id) {
     `<input id="f-nombre" class="campo" placeholder="Nombre" maxlength="60" value="${esc(p ? p.nombre : '')}">
      <div style="height:.6rem"></div>
      <input id="f-precio" class="campo" type="number" min="0" step="500" placeholder="Precio en COP" value="${p ? p.precio : ''}">
+     <div style="height:.6rem"></div>
+     <input id="f-stock" class="campo" type="number" min="0" step="1" placeholder="Stock disponible" value="${p ? (p.stock ?? 0) : 10}">
      <div style="height:.6rem"></div>
      <input id="f-emo" class="campo" placeholder="Emoji (ej: 🍔)" maxlength="4" value="${esc(p ? p.emo : '')}">
      <div style="height:.6rem"></div>
@@ -454,12 +526,15 @@ function dialogoProducto(id) {
 }
 
 async function guardarProducto(id) {
+  const stockValor = parseInt($('f-stock').value, 10);
   const datos = {
     nombre: $('f-nombre').value,
     precio: parseInt($('f-precio').value, 10),
+    stock: Number.isNaN(stockValor) ? 0 : stockValor,
     emo: $('f-emo').value,
     tipo: $('f-tipo').value
   };
+
 
   // El servidor normaliza y valida el producto; aquí solo se recogen los valores del formulario.
   try { await api(id ? `/menu/${id}` : '/menu', { method: id ? 'PUT' : 'POST', body: JSON.stringify(datos) }); }
@@ -588,7 +663,11 @@ function avisarPedidoNuevo() {
    --------------------------------------------------------------- */
 (async function iniciar() {
   // En el login siempre se parte sin sesión (los links "Salir" llevan aquí)
-  if ($('form-login')) { sessionStorage.removeItem('rol'); return; }
+  if ($('form-login')) { limpiarSesion(); return; }
+
+  document.querySelectorAll('a[href="login.html"]').forEach(enlace => {
+    enlace.addEventListener('click', cerrarSesion);
+  });
 
   const rol = await obtenerRol();
   const requerido = $('panel-nuevo') ? 'mostrador' : $('lista-cocina') ? 'cocina' : $('lista-menu') ? 'admin' : null;

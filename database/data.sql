@@ -7,3 +7,4 @@ INSERT INTO menu (nombre, precio, emo, tipo) VALUES
  ('Papas francesas',7000,'🍟','plato'), ('Gaseosa 400 ml',4000,'🥤','bebida'),
  ('Jugo natural',6000,'🧃','bebida'), ('Agua',3000,'💧','bebida')
 ON CONFLICT DO NOTHING;
+

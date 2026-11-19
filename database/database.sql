@@ -36,3 +36,4 @@ CREATE TABLE IF NOT EXISTS items_pedido (
 CREATE INDEX IF NOT EXISTS idx_pedidos_estado ON pedidos(estado);
 CREATE INDEX IF NOT EXISTS idx_pedidos_creado ON pedidos(creado DESC);
 CREATE INDEX IF NOT EXISTS idx_items_pedido ON items_pedido(pedido_id);
+
