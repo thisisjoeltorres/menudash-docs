@@ -18,6 +18,7 @@ import org.hibernate.type.SqlTypes;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
@@ -107,7 +108,10 @@ interface UsuarioRepo extends JpaRepository<Usuario, Long> {
 interface MenuRepo extends JpaRepository<Producto, Long> {
     List<Producto> findByEliminadoFalseOrderByIdAsc();
 }
-
+interface ProductoVendido {
+    String getNombre();
+    Long getCantidad();
+}
 interface PedidoRepo extends JpaRepository<Pedido, Long> {
     List<Pedido> findAllByOrderByCreadoAsc();
 
@@ -125,5 +129,31 @@ interface PedidoRepo extends JpaRepository<Pedido, Long> {
             from pedidos
             where (creado at time zone 'America/Bogota')::date = :hoy
             """, nativeQuery = true)
+    @Query("""
+            select coalesce(sum(p.total), 0L)
+            from Pedido p
+            where p.estado = 'entregado' and p.creado >= :desde and p.creado < :hasta
+            """)
+    long sumarVentasEntregadas(@Param("desde") OffsetDateTime desde,
+                               @Param("hasta") OffsetDateTime hasta);
+
+    long countByEstadoAndCreadoGreaterThanEqualAndCreadoLessThan(
+            String estado, OffsetDateTime desde, OffsetDateTime hasta);
+
+    // Productos agrupados por nombre, del más vendido al menos vendido.
+    @Query("""
+            select i.nombre as nombre, sum(i.cant) as cantidad
+            from ItemPedido i
+            where i.pedido.estado = 'entregado'
+              and i.pedido.creado >= :desde and i.pedido.creado < :hasta
+            group by i.nombre
+            order by sum(i.cant) desc, i.nombre asc
+            """)
+    List<ProductoVendido> productosMasVendidos(@Param("desde") OffsetDateTime desde,
+                                               @Param("hasta") OffsetDateTime hasta,
+                                               Pageable limite);
+
     int maxTurnoHoy(@Param("hoy") java.sql.Date hoy);
 }
+
+

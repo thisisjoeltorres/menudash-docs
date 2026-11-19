@@ -76,12 +76,21 @@ async function cargarPedidos() {
 }
 
 async function cargarAdmin() {
-  const his = await api('/pedidos?hoy=true');
-  const kpi = document.querySelectorAll('.kpi-valor');
-  // TODO: [TAREA PARA COMPAÑERO 1] Consumir GET /api/admin/estadisticas; el navegador no debe calcular métricas de pedidos.
-  if (kpi.length >= 3) kpi.forEach(valor => { valor.textContent = '—'; });
+  const [his, estadisticas] = await Promise.all([
+    api('/pedidos?hoy=true'),
+    api('/admin/estadisticas').catch(() => null)
+  ]);
   historial = his;
   pintarHistorial();
+  pintarEstadisticas(estadisticas);
+}
+
+function pintarEstadisticas(e) {
+  if (!$('kpi-ventas')) return;
+  $('kpi-ventas').textContent = e ? pesos(e.ventas) : '—';
+  $('kpi-entregados').textContent = e ? e.entregados : '—';
+  $('kpi-mas-vendido').textContent = e ? e.masVendido : '—';
+  if ($('kpi-promedio')) $('kpi-promedio').textContent = e ? pesos(e.promedio) : '—';
 }
 
 async function recargarTodo() {
