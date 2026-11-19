@@ -45,7 +45,7 @@ function actualizarPlaceholderPin() {
 }
 
 async function obtenerRol() {
-  // TODO: [TAREA PARA COMPAÑERO 4] Enviar el token guardado en sessionStorage a un endpoint de validación y devolver el rol solo si sigue vigente; si expira, borrar sesión y redirigir al login.
+  // TODO: Enviar el token guardado en sessionStorage a un endpoint de validación y devolver el rol solo si sigue vigente; si expira, borrar sesión y redirigir al login.
   return sesion();
 }
 
@@ -77,9 +77,17 @@ async function cargarPedidos() {
 
 async function cargarAdmin() {
   const his = await api('/pedidos?hoy=true');
-  const kpi = document.querySelectorAll('.kpi-valor');
-  // TODO: [TAREA PARA COMPAÑERO 1] Consumir GET /api/admin/estadisticas; el navegador no debe calcular métricas de pedidos.
-  if (kpi.length >= 3) kpi.forEach(valor => { valor.textContent = '—'; });
+  try {
+    const estadisticas = await api('/admin/estadisticas');
+    $('kpi-ventas').textContent = pesos(estadisticas.ventas ?? 0);
+    $('kpi-entregados').textContent = Number(estadisticas.entregados ?? 0).toLocaleString('es-CO');
+    $('kpi-promedio').textContent = pesos(estadisticas.promedio ?? 0);
+    $('kpi-mas-vendido').textContent = estadisticas.masVendido || '—';
+  } catch (error) {
+    ['kpi-ventas', 'kpi-entregados', 'kpi-promedio', 'kpi-mas-vendido'].forEach(id => {
+      if ($(id)) $(id).textContent = 'No disponible';
+    });
+  }
   historial = his;
   pintarHistorial();
 }

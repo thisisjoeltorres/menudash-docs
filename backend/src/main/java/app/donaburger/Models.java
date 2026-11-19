@@ -115,6 +115,25 @@ interface PedidoRepo extends JpaRepository<Pedido, Long> {
 
     List<Pedido> findByCreadoGreaterThanEqualOrderByCreadoDesc(OffsetDateTime desde);
 
+    @Query(value = """
+            select coalesce(sum(p.total), 0) as ventas, count(*) as entregados
+            from pedidos p
+            where p.estado = 'entregado'
+              and p.creado >= :desde and p.creado < :hasta
+            """, nativeQuery = true)
+    EstadisticaDiariaProjection resumenEntregados(@Param("desde") OffsetDateTime desde,
+                                                   @Param("hasta") OffsetDateTime hasta);
+
+    @Query(value = """
+            select i.nombre as nombre, sum(i.cant) as cantidad
+            from items_pedido i join pedidos p on p.id = i.pedido_id
+            where p.estado = 'entregado'
+              and p.creado >= :desde and p.creado < :hasta
+            group by i.nombre order by sum(i.cant) desc, i.nombre asc
+            """, nativeQuery = true)
+    List<ProductoVendidoProjection> productosMasVendidos(@Param("desde") OffsetDateTime desde,
+                                                          @Param("hasta") OffsetDateTime hasta);
+
     // Bloquea la fila del usuario admin semilla mientras Java asigna el turno diario.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select usuario from Usuario usuario where usuario.rol = 'admin'")
@@ -126,4 +145,14 @@ interface PedidoRepo extends JpaRepository<Pedido, Long> {
             where (creado at time zone 'America/Bogota')::date = :hoy
             """, nativeQuery = true)
     int maxTurnoHoy(@Param("hoy") java.sql.Date hoy);
+}
+
+interface EstadisticaDiariaProjection {
+    Number getVentas();
+    Number getEntregados();
+}
+
+interface ProductoVendidoProjection {
+    String getNombre();
+    Number getCantidad();
 }
